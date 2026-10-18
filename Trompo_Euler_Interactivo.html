@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ángulos de Euler — Trompo interactivo</title>
+  <style>
+    :root { color-scheme:light; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; color:#172334; background:#f7f9fc; }
+    .wrapper { padding:12px; width:100%; }
+    .grid { display:grid; grid-template-columns:minmax(0,1fr) 255px; gap:14px; align-items:start; }
+    #visor { width:100%; height:485px; display:block; position:relative; border:1px solid #d6e0e9; background:linear-gradient(#f3f8fd,#e8eef4); border-radius:12px; overflow:hidden; touch-action:none; }
+    #visor canvas { display:block; width:100%; height:100%; }
+    #estado { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:24px; color:#56677c; pointer-events:none; font-size:14px; }
+    .small {font-size:12px;color:#65758b;line-height:1.5;}
+    .legend { display:flex; flex-wrap:wrap; gap:6px 13px; padding:9px 3px 0; font-size:12px;color:#42536b; }
+    .pill { display:inline-flex;align-items:center;gap:5px; }
+    .dot {width:9px;height:9px;display:inline-block;border-radius:50%;}
+    .panel { border:1px solid #d6e0e9; border-radius:12px; padding:16px 14px; background:white; }
+    .heading {font-weight:700;font-size:16px;margin:0 0 4px;}
+    .sub { margin:0 0 18px; }
+    .control { margin:0 0 19px; }
+    .name {display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:14px;font-weight:700;}
+    output {font-variant-numeric:tabular-nums;font-weight:700;color:#1d557e;}
+    input[type=range]{width:100%;accent-color:#207ba3; margin:10px 0 6px; cursor:pointer;}
+    .hint {margin-top:0;}
+    .buttons {display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+    button {border:1px solid #c6d4e2; background:#f3f7fb; padding:10px 12px;border-radius:8px; cursor:pointer;font-size:13px;font-weight:650;color:#172334;}
+    button:hover{background:#e5f2fb}
+    button.primary {background:#19759d;border-color:#19759d;color:white;}
+    button.primary:hover{background:#105b7b}
+    .formula { margin-top:14px;padding:11px;border-radius:9px;background:#f3f6f9;color:#233952;font-size:13px;line-height:1.55;}
+    .formula code {font-family: ui-monospace,SFMono-Regular,Consolas,monospace; font-size:13px;}
+    .help {margin:8px 0 0; font-size:12px; color:#526782;line-height:1.5;}
+    @media(max-width:660px){.grid{grid-template-columns:1fr;}#visor{height:370px}.panel{padding:12px}.control{margin-bottom:11px}.wrapper{padding:7px}}
+  </style>
+  <script type="importmap">
+    {"imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+    }}
+  </script>
+</head>
+<body>
+<div class="wrapper">
+  <div class="grid">
+    <div>
+      <div id="visor" aria-label="Vista tridimensional de un trompo rotante. Puede girar la cámara arrastrando el mouse.">
+        <div id="estado">Cargando escena 3D… (necesita conexión a Internet para cargar Three.js)</div>
+      </div>
+      <div class="legend">
+        <span class="pill"><span class="dot" style="background:#427ea3"></span>Cuerpo del trompo</span>
+        <span class="pill"><span class="dot" style="background:#ef9c30"></span>Marca de giro propio</span>
+        <span class="pill"><span class="dot" style="background:#16a085"></span>Eje de simetría z′</span>
+        <span class="pill"><span class="dot" style="background:#a68bb2"></span>Trayectoria de precesión</span>
+      </div>
+      <p class="help">Arrastra sobre el modelo para cambiar la perspectiva. Usa la rueda del ratón para acercar y alejar.</p>
+    </div>
+    <section class="panel" aria-label="Controles de los ángulos de Euler">
+      <p class="heading">Orientación del trompo</p>
+      <p class="small sub">Convención ZXZ · ángulos en grados</p>
+      <div class="control">
+        <label class="name" for="phi"><span>φ — Precesión</span><output id="phiNum">40°</output></label>
+        <input id="phi" type="range" min="0" max="360" step="1" value="40">
+        <p class="small hint">Rotación alrededor del eje fijo z.</p>
+      </div>
+      <div class="control">
+        <label class="name" for="theta"><span>θ — Nutación</span><output id="thetaNum">40°</output></label>
+        <input id="theta" type="range" min="0" max="180" step="1" value="40">
+        <p class="small hint">Inclinación del eje del trompo respecto a z.</p>
+      </div>
+      <div class="control">
+        <label class="name" for="psi"><span>ψ — Giro propio</span><output id="psiNum">20°</output></label>
+        <input id="psi" type="range" min="0" max="360" step="1" value="20">
+        <p class="small hint">Rotación alrededor del eje del trompo z′.</p>
+      </div>
+      <div class="buttons">
+        <button id="play" type="button" class="primary">▶ Animar</button>
+        <button id="reset" type="button">↺ Reiniciar</button>
+      </div>
+      <p class="help">La animación hace avanzar φ y ψ; mantiene θ constante.</p>
+      <div class="formula"><b>Matriz de orientación</b><br><code>R = Rz(φ) Rx(θ) Rz(ψ)</code><br><span class="small">Rotaciones activas de un sólido rígido; el punto de apoyo permanece fijo.</span></div>
+    </section>
+  </div>
+</div>
+<script type="module">
+  const estado = document.getElementById('estado');
+  try {
+    const THREE = await import('three');
+    const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+    const contenedor = document.getElementById('visor');
+    const escena = new THREE.Scene();
+    escena.background = new THREE.Color(0xf2f6fb);
+    const camara = new THREE.PerspectiveCamera(40, 1, 0.05, 100);
+    camara.up.set(0, 0, 1);
+    camara.position.set(5.0, -7.5, 5.1);
+    const renderizador = new THREE.WebGLRenderer({antialias:true, alpha:false});
+    renderizador.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderizador.outputColorSpace = THREE.SRGBColorSpace;
+    contenedor.appendChild(renderizador.domElement);
+    estado.remove();
+    const controles = new OrbitControls(camara, renderizador.domElement);
+    controles.target.set(0, 0, 1.35);
+    controles.enableDamping = true;
+    controles.dampingFactor = .09;
+    controles.minDistance = 4;
+    controles.maxDistance = 17;
+    controles.update();
+
+    escena.add(new THREE.AmbientLight(0xffffff, 1.35));
+    const sol = new THREE.DirectionalLight(0xffffff, 2.0);
+    sol.position.set(4, -5, 7);
+    escena.add(sol);
+    const rellenado = new THREE.DirectionalLight(0x90b8ff, .85);
+    rellenado.position.set(-5, 3, 3);
+    escena.add(rellenado);
+
+    const cuadricula = new THREE.GridHelper(6, 12, 0xb5c6d7, 0xd6e0e9);
+    cuadricula.rotation.x = Math.PI/2;
+    escena.add(cuadricula);
+    const axes = new THREE.AxesHelper(2.9); escena.add(axes);
+    const gris = new THREE.LineDashedMaterial({color:0x697a90,dashSize:.12,gapSize:.08,transparent:true,opacity:.8});
+    const verticalGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,3.7)]);
+    const vertical = new THREE.Line(verticalGeom,gris);vertical.computeLineDistances();escena.add(vertical);
+
+    // Perfil radial (radio, altura), en coordenadas del cuerpo.
+    const perfil = [
+      [0,0], [.09,.10], [.20,.22], [.38,.42], [.69,.70],
+      [.96,1.01], [1.08,1.24], [1.05,1.40], [.86,1.67],
+      [.56,1.92], [.27,2.12], [.17,2.30], [.17,2.55],
+      [.12,2.63], [0,2.68]
+    ];
+    const geometria = new THREE.LatheGeometry(perfil.map(([r,z])=>new THREE.Vector2(r,z)),64);
+    geometria.rotateX(Math.PI/2); // LatheGeometry usa el eje Y; lo pasamos al eje Z.
+    geometria.computeVertexNormals();
+    const material = new THREE.MeshStandardMaterial({color:0x4688b0,metalness:.17,roughness:.37,side:THREE.DoubleSide});
+    const grupo = new THREE.Group();
+    escena.add(grupo);
+    const trompo = new THREE.Mesh(geometria,material);
+    grupo.add(trompo);
+
+    // Franja superficial: imprescindible para observar el ángulo psi.
+    const puntosMarca = perfil.slice(2,13).map(([r,z])=>new THREE.Vector3(r+.025,0,z));
+    const curvaMarca = new THREE.CatmullRomCurve3(puntosMarca);
+    const marca = new THREE.Mesh(
+      new THREE.TubeGeometry(curvaMarca,110,.035,7,false),
+      new THREE.MeshStandardMaterial({color:0xffa329,emissive:0x543000,roughness:.25})
+    );
+    grupo.add(marca);
+    const puntoNaranja = new THREE.Mesh(new THREE.SphereGeometry(.095,14,12),
+      new THREE.MeshStandardMaterial({color:0xffbd50,emissive:0x522600}));
+    puntoNaranja.position.set(1.108,0,1.24);
+    grupo.add(puntoNaranja);
+
+    const ejeCuerpo = new THREE.ArrowHelper(new THREE.Vector3(0,0,1),new THREE.Vector3(0,0,0),3.05,0x16a085,.20,.12);
+    grupo.add(ejeCuerpo);
+    const fulcro = new THREE.Mesh(new THREE.SphereGeometry(.075,12,10),
+      new THREE.MeshStandardMaterial({color:0x2d3545}));
+    escena.add(fulcro);
+
+    const trayectoriaMat = new THREE.LineDashedMaterial({color:0xa68bb2,dashSize:.09,gapSize:.07,transparent:true,opacity:.85});
+    const trayectoria = new THREE.Line(new THREE.BufferGeometry(),trayectoriaMat);
+    escena.add(trayectoria);
+    const marcador = new THREE.Mesh(new THREE.SphereGeometry(.08,16,12),new THREE.MeshBasicMaterial({color:0x168f7e}));
+    escena.add(marcador);
+
+    const phi = document.getElementById('phi');
+    const theta = document.getElementById('theta');
+    const psi = document.getElementById('psi');
+    const rad = Math.PI / 180;
+    const ejeZ = new THREE.Vector3(0,0,1);
+    const ejeX = new THREE.Vector3(1,0,0);
+    const rotPhi = new THREE.Quaternion(),rotTheta = new THREE.Quaternion(),rotPsi = new THREE.Quaternion();
+    let thetaAnterior = -1;
+    function actualizar() {
+      const p = Number(phi.value), t = Number(theta.value), s = Number(psi.value);
+      document.getElementById('phiNum').textContent = Math.round(p)+'°';
+      document.getElementById('thetaNum').textContent = Math.round(t)+'°';
+      document.getElementById('psiNum').textContent = Math.round(s)+'°';
+      // R = R_z(phi) R_x(theta) R_z(psi). La derecha actúa primero.
+      rotPhi.setFromAxisAngle(ejeZ,p*rad);
+      rotTheta.setFromAxisAngle(ejeX,t*rad);
+      rotPsi.setFromAxisAngle(ejeZ,s*rad);
+      grupo.quaternion.copy(rotPhi).multiply(rotTheta).multiply(rotPsi);
+      marcador.position.copy(new THREE.Vector3(0,0,3.05).applyQuaternion(grupo.quaternion));
+      if (t !== thetaAnterior) {
+        thetaAnterior = t;
+        // El extremo del eje z' describe un círculo si sólo varía phi.
+        const r = 3.05*Math.sin(t*rad), z = 3.05*Math.cos(t*rad);
+        const vertices = [];
+        for(let i=0;i<=180;i++) {
+          const a=2*Math.PI*i/180;
+          vertices.push(new THREE.Vector3(r*Math.sin(a),-r*Math.cos(a),z));
+        }
+        trayectoria.geometry.dispose();
+        trayectoria.geometry = new THREE.BufferGeometry().setFromPoints(vertices);
+        trayectoria.computeLineDistances();
+      }
+    }
+    [phi,theta,psi].forEach(slider=>slider.addEventListener('input',actualizar));
+    actualizar();
+    let reproduciendo = false;
+    const botonPlay = document.getElementById('play');
+    botonPlay.addEventListener('click',()=>{
+      reproduciendo = !reproduciendo;
+      botonPlay.textContent = reproduciendo ? '⏸ Pausar' : '▶ Animar';
+    });
+    document.getElementById('reset').addEventListener('click',()=>{
+      reproduciendo = false;
+      botonPlay.textContent = '▶ Animar';
+      phi.value = 40; theta.value = 40; psi.value = 20;
+      actualizar();
+    });
+    const ajustador = new ResizeObserver(()=>{
+      const w = contenedor.clientWidth, h = contenedor.clientHeight;
+      if (w>0 && h>0){
+        camara.aspect=w/h;camara.updateProjectionMatrix();renderizador.setSize(w,h,false);
+      }
+    });
+    ajustador.observe(contenedor);
+    let anterior = performance.now();
+    let residuo = 0;
+    function cuadro(ahora) {
+      const dt = Math.min(.09, (ahora-anterior)/1000);
+      anterior = ahora;
+      if (reproduciendo) {
+        // El control es discreto (grados enteros) para conservar barras legibles.
+        residuo += dt;
+        if (residuo >= 1/40) {
+          phi.value = (Number(phi.value) + 2) % 361;
+          psi.value = (Number(psi.value) + 9) % 361;
+          actualizar();
+          residuo = 0;
+        }
+      }
+      controles.update();
+      renderizador.render(escena,camara);
+      requestAnimationFrame(cuadro);
+    }
+    requestAnimationFrame(cuadro);
+  } catch (error) {
+    estado.textContent = 'No fue posible cargar Three.js. Comprueba tu conexión a Internet y vuelve a ejecutar la celda. Detalle: '+String(error.message||error);
+    console.error(error);
+  }
+</script>
+</body>
+</html>
